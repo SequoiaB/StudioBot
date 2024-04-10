@@ -243,12 +243,10 @@ async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return END
     
     tempInfo['Tempo studiato'] = tempInfo["nS"] * tempInfo["Tempo_studio"]
-    tabella = ModuloJson.read_csv_table("tabella_studio", colonne)
-    tabella = tabella.append(tempInfo, ignore_index=True)
-    # Salva il DataFrame aggiornato nel file CSV
-    ModuloJson.save_user_data("reputazioni", tabella)
-    
 
+    # Salva il DataFrame aggiornato nel file CSV
+    ModuloJson.add_new_line(name="tabella_studio", columns=colonne, newline=tempInfo)
+    
     await query.edit_message_text(
         text=f"Salvato con successo!"
     )
@@ -310,7 +308,6 @@ async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 ###
 
 async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> int:
-    """Send a message when the command /start is issued."""
     try:
 
         if update.message.from_user.id == 527634720:
@@ -319,9 +316,10 @@ async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> in
             await update.message.reply_text(f"controllo chat non superato ❌, questo bot puo' essere usato *solo in gruppi autorizzati\.*\nIl tuo id e' `{update.effective_user.id}`\.`", parse_mode='MarkdownV2')
             return
         
-        colonne = ['Materia', 'Tempo studiato', 'Efficenza', 'Note']
+        colonne = ['Materia', 'Tempo studiato','Tempo_studio','Tempo_pausa','nS','nP','Efficenza', 'Note']
         df = ModuloJson.read_csv_table("tabella_studio", colonne)
         ModuloJson.save_user_data("tabella_studio", df)
+        
         if not df.empty and df.shape[0] > 0:
             await update.message.reply_text("Il DataFrame ha almeno una riga di dati, comincia ad usarlo con i comandi🎈🎉")
         else:
@@ -424,7 +422,7 @@ def main()  -> int:
     # Add ConversationHandler to application that will be used for handling updates
     application.add_handler(conv_handler)
 
-    # application.add_handler(CommandHandler("manualRep", manualRep))
+    application.add_handler(CommandHandler("start", inizializza))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("print", stampa))
 

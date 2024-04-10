@@ -16,6 +16,18 @@ def save_user_data(name, table):
     except Exception as e:
         print(f"Errore durante la scrittura del file CSV {name}: {e}")
 
+def add_new_line(name, columns, newline):
+    try:
+        table = read_csv_table(name, columns)
+        tempInfo_df = pd.DataFrame([newline], columns=columns)  # Ensure the correct column names are used
+        table = pd.concat(table, tempInfo_df)
+        save_user_data(name, table)
+    except Exception as e:
+        print(f"Errore durante l'aggiunta della nuova riga in {name}: {e}")
+
+# Assuming read_csv_table and save_user_data functions are defined elsewhere
+
+
 def estrai_nomi_da_stringa(s):
     try:
         # Utilizza una regex per trovare tutti i tag nella stringa
