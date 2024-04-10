@@ -29,7 +29,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Stages
-MATERIA, TEMPO_STUDIO, TEMPO_PAUSA, CICLO_FOCUS, STOP , END = range(6)
+MATERIA, TEMPO_STUDIO, TEMPO_PAUSA, STUDIO, PAUSA, STOP_SAVE , END = range(7)
 # Callback data
 ONE, TWO, THREE, FOUR , FIVE, SIX, SEVEN, EIGHT, NINE, TEN, ELEVEN, TWELVE = range(12)
 
@@ -45,10 +45,12 @@ async def start_focus_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 'Tempo studiato': 0, 
                 'Tempo_studio': 0,
                 'Tempo_pausa': 0,
+                'nS':0,
+                'nP':0,
                 'Efficenza': 0, 
                 'Note': "?"
                 }
-    colonne = ['Materia', 'Tempo studiato','Tempo_studio','Tempo_pausa', 'Efficenza', 'Note']
+    colonne = ['Materia', 'Tempo studiato','Tempo_studio','Tempo_pausa','nS','nP','Efficenza', 'Note']
 
     df = ModuloJson.read_csv_table("tabella_studio", colonne)
     materie_unique = df['Materia'].unique()  # Ottieni tutti i valori unici dalla colonna 'Materia'
@@ -170,7 +172,87 @@ async def salva_t_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     await query.edit_message_text(
         text="Al tuo segnale!", reply_markup=reply_markup
     )
-    return CICLO_FOCUS
+    return STUDIO
+
+async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    global tempInfo
+    print("tempInfo nS: ", tempInfo["nS"])
+    
+    # ASPETTA IL TEMPO NECESSARIO
+
+    tempInfo['nS'] = tempInfo['nS'] + 1
+    if tempInfo['nS'] > 3:
+        keyboard = [
+        [
+            InlineKeyboardButton("Continua", callback_data=str(ONE)),
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+        text=f"Hai completato tutte le {tempInfo['nS']} sesh da {tempInfo['Tempo_studio']} minuti!", reply_markup=reply_markup
+    )
+        return STOP_SAVE
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("Comincia la pausa", callback_data=str(ONE)),
+        ],
+        [
+            InlineKeyboardButton("Smetti di studiare", callback_data=str(TWO)),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        text=f"Hai completato {tempInfo['nS']} sesh da {tempInfo['Tempo_studio']} minuti!", reply_markup=reply_markup
+    )
+    return PAUSA
+
+async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    global tempInfo
+    print("tempInfo nP: ", tempInfo["nP"])
+    
+    # ASPETTA IL TEMPO NECESSARIO
+
+    tempInfo["nP"] = tempInfo["nP"] + 1
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("Studia", callback_data=str(ONE)),
+        ],
+        [
+            InlineKeyboardButton("Basta ho finito", callback_data=str(TWO)),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        text=f"Pausa finita, pronto per studiare?", reply_markup=reply_markup
+    )
+    return STUDIO
+
+async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    global colonne
+    query = update.callback_query
+    await query.answer()
+    global tempInfo
+    if tempInfo["nS"] == 0:
+        return END
+    
+    tempInfo['Tempo studiato'] = tempInfo["nS"] * tempInfo["Tempo_studio"]
+    tabella = ModuloJson.read_csv_table("tabella_studio", colonne)
+    tabella = tabella.append(tempInfo, ignore_index=True)
+    # Salva il DataFrame aggiornato nel file CSV
+    ModuloJson.save_user_data("reputazioni", tabella)
+    
+
+    await query.edit_message_text(
+        text=f"Salvato con successo!"
+    )
+    return PAUSA
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Returns `ConversationHandler.END`, which tells the
@@ -181,7 +263,52 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.edit_message_text(text="See you next time!")
     return ConversationHandler.END
 
-# Define a few command handlers. These usually take the two arguments update and context.
+###
+
+async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send the alarm message."""
+    job = context.job
+    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+
+def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Remove job with given name. Returns whether job was removed."""
+    current_jobs = context.job_queue.get_jobs_by_name(name)
+    if not current_jobs:
+        return False
+    for job in current_jobs:
+        job.schedule_removal()
+    return True
+
+async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Add a job to the queue."""
+    chat_id = update.effective_message.chat_id
+    try:
+        # args[0] should contain the time for the timer in seconds
+        due = float(context.args[0])
+        if due < 0:
+            await update.effective_message.reply_text("Sorry we can not go back to future!")
+            return
+
+        job_removed = remove_job_if_exists(str(chat_id), context)
+        context.job_queue.run_once(alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
+
+        text = "Timer successfully set!"
+        if job_removed:
+            text += " Old one was removed."
+        await update.effective_message.reply_text(text)
+
+    except (IndexError, ValueError):
+        await update.effective_message.reply_text("Usage: /set <seconds>")
+
+async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Remove the job if the user changed their mind."""
+    chat_id = update.message.chat_id
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    text = "Timer successfully cancelled!" if job_removed else "You have no active timer."
+    await update.message.reply_text(text)
+
+###
+
 async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> int:
     """Send a message when the command /start is issued."""
     try:
@@ -205,10 +332,7 @@ async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> in
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> int:
     """Send a message when the command /help is issued."""
     help_message = '''
-Possibili comandi:
-/reps \- _visualizza tutte le reputazioni_
-/newtrade \- _inserisci un nuovo scambio_
-/help \- _questo messaggio_'''
+'''
     await update.message.reply_text(help_message, parse_mode="MarkdownV2")
 
 async def stampa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -276,12 +400,16 @@ def main()  -> int:
                 CallbackQueryHandler(salva_t_pausa, pattern="^" + str(NINE) + "$"),
                 CallbackQueryHandler(end, pattern="^" + str(TEN) + "$"),
                 ],
-            CICLO_FOCUS: [
-                #CallbackQueryHandler(one, pattern="^" + str(ONE) + "$"),
+            STUDIO: [
+                CallbackQueryHandler(studio, pattern="^" + str(ONE) + "$"),
                 CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
                 ],
-            STOP: [
-                #CallbackQueryHandler(one, pattern="^" + str(ONE) + "$"),
+            PAUSA: [
+                CallbackQueryHandler(pausa, pattern="^" + str(ONE) + "$"),
+                CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
+                ],
+            STOP_SAVE: [
+                CallbackQueryHandler(salva, pattern="^" + str(ONE) + "$"),
                 CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
                 ],
             END: [
