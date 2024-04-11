@@ -335,20 +335,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE)  -> i
 
 async def stampa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     colonne = ['username', 'reputazione', 'volume']  # Rimuovi 'id' dalle colonne
-    df = ModuloJson.read_csv_table("reputazioni", colonne)
+    df = ModuloJson.read_csv_table("tabella_studio", colonne)
     
-    if not df.empty and df.shape[0] > 0:
-        # Formatta manualmente i dati come una tabella        
-        # Intestazione della tabella
-        message = "*Username \| Reputazione \| Volume*\n"
-        # Aggiungi righe
-        for index, row in df.iterrows():
-            message += f"@{ModuloJson.escape_special_chars(row['username'])} \| {int(row['reputazione'])} \| {row['volume']}\n"
+    print(df)
+    
+    # if not df.empty and df.shape[0] > 0:
+    #     # Formatta manualmente i dati come una tabella        
+    #     # Intestazione della tabella
+    #     message = "*Username \| Reputazione \| Volume*\n"
+    #     # Aggiungi righe
+    #     for index, row in df.iterrows():
+    #         message += f"@{ModuloJson.escape_special_chars(row['username'])} \| {int(row['reputazione'])} \| {row['volume']}\n"
 
-        await update.message.reply_text(message, parse_mode="MarkdownV2")
-    else:
-        await update.message.reply_text("Il *DataFrame è vuoto* o contiene solo i titoli delle colonne\n\n*Chiedi ad un admin di assegnare le prime reputazioni a persone fidate*", parse_mode="MarkdownV2")
-        return
+    #     await update.message.reply_text(message, parse_mode="MarkdownV2")
+    # else:
+    #     await update.message.reply_text("Il *DataFrame è vuoto* o contiene solo i titoli delle colonne\n\n*Chiedi ad un admin di assegnare le prime reputazioni a persone fidate*", parse_mode="MarkdownV2")
+    #     return
 
 
 
