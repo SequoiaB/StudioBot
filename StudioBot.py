@@ -86,7 +86,7 @@ async def start_focus_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     # Send message with text and appended InlineKeyboard
-    await update.message.reply_text("Start handler, Choose a route", reply_markup=reply_markup)
+    await update.message.reply_text("Ciao, che materia vuoi studiare?", reply_markup=reply_markup)
     # Tell ConversationHandler that we're in state `FIRST` now
     return MATERIA
 
