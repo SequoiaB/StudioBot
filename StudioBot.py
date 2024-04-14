@@ -332,7 +332,7 @@ async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the alarm message."""
     job = context.job
 
-    await context.bot.send_message(job.chat_id, text=f"Beep!⏰ \n\nSono passati {job.data} minuti!")
+    await context.bot.send_message(job.chat_id, text=f"Beep!⏰ \n\nSono passati {job.data//60} minuti!")
 
 
 async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
