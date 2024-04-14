@@ -5,15 +5,19 @@
 """
 Simple Bot to keep track of your study and study better
 """
-
+import matplotlib.pyplot as plt
+import numpy as np
 import time
 import logging
 import ModuloScelte
 import ModuloJson
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ConversationHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
+
 from dotenv import load_dotenv
 import os
+from io import BytesIO
+
 
 load_dotenv()
 bot_token = os.getenv("BOT_TOKEN")
@@ -58,8 +62,7 @@ async def start_focus_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                'Tempo_pausa', 'nS', 'nP', 'Efficenza', 'Note']
 
     df = ModuloJson.read_csv_table("tabella_studio", colonne)
-    # Ottieni tutti i valori unici dalla colonna 'Materia'
-    materie_unique = df['Materia'].unique()
+
     # Build InlineKeyboard where each button has a displayed text
     # and a string as callback_data
     # The keyboard is a list of button rows, where each row is in turn
@@ -188,12 +191,24 @@ async def salva_t_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    global tempInfo
+    
     query = update.callback_query
     chat_id = update.effective_message.chat_id
+    query_id = query.message.message_id
 
+    delete_id = query_id + tempInfo['nS'] + tempInfo['nP']
+    if tempInfo['nS'] == 0:
+        delete_id = query_id + 1
     await query.answer()
+    await query.edit_message_text(
+            text=f"Inizia la sessione di focus numero {tempInfo['nS']+1}, attento!")
+    
+    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+    if tempInfo['nS'] != 0:
+        await context.bot.deleteMessage(update.effective_chat.id, delete_id)
+        print("eliminato messaggio con id: ", delete_id)
 
-    global tempInfo
     print("tempInfo nS: ", tempInfo["nS"])
 
     due = tempInfo["Tempo_studio"]*60
@@ -230,13 +245,28 @@ async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-
     global tempInfo
+    chat_id = update.effective_message.chat_id
+    query = update.callback_query
+    query_id = query.message.message_id
+    delete_id = query_id + tempInfo['nS'] + tempInfo["nP"]
+
+    if tempInfo['nP'] == 0:
+        delete_id = query_id + 1
+    
+    await query.answer()
+    await query.edit_message_text(text=f"Inizia la pausa numero {tempInfo['nP']+1} 😌")
+
+    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+    await context.bot.deleteMessage(update.effective_chat.id, delete_id)
+    print("eliminato messaggio con id: ", delete_id)
+    
     print("tempInfo nP: ", tempInfo["nP"])
 
-    # ASPETTA IL TEMPO NECESSARIO
+    due = tempInfo['Tempo_pausa'] * 60
+    context.job_queue.run_once(
+        alarm, due, chat_id=chat_id, name=str(chat_id), data=due,)
+    time.sleep(due)
 
     tempInfo["nP"] = tempInfo["nP"] + 1
 
@@ -245,7 +275,7 @@ async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             InlineKeyboardButton("Studia", callback_data=str(ONE)),
         ],
         [
-            InlineKeyboardButton("Basta ho finito", callback_data=str(TWO)),
+            InlineKeyboardButton("Basta, ho finito", callback_data=str(TWO)),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -257,11 +287,20 @@ async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     global colonne
-    query = update.callback_query
-    await query.answer()
     global tempInfo
+
+    query = update.callback_query
+    query_id = query.message.message_id
+    delete_id = query_id + tempInfo['nS'] + tempInfo["nP"]
+
+    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+    await context.bot.deleteMessage(update.effective_chat.id, delete_id)
+    print("eliminato messaggio con id: ", delete_id)
+
+    await query.answer()
     if tempInfo["nS"] == 0:
-        return END
+        await query.edit_message_text(text=f"Ah, trolli? 🗿")
+        return ConversationHandler.END
 
     tempInfo['Tempo studiato'] = tempInfo["nS"] * tempInfo["Tempo_studio"]
 
@@ -269,10 +308,12 @@ async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ModuloJson.add_new_line(name="tabella_studio",
                             columns=colonne, newline=tempInfo)
 
+    ore_studiate = tempInfo['Tempo studiato']//60
+    minuti_restanti = tempInfo['Tempo studiato'] - 60* ore_studiate
     await query.edit_message_text(
-        text=f"Salvato con successo!"
+        text=f"salvato, hai studiato {tempInfo['Materia']} per {ore_studiate} ore e {minuti_restanti} minuti, 🆒\npausetta? ☕"
     )
-    return PAUSA
+    return ConversationHandler.END
 
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -281,7 +322,7 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text(text="See you next time!")
+    await query.edit_message_text(text="Scrivimi quando vuoi studiare 👋")
     return ConversationHandler.END
 
 ###
@@ -291,50 +332,7 @@ async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the alarm message."""
     job = context.job
 
-    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data/60} minuti scaduti!")
-
-
-def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Remove job with given name. Returns whether job was removed."""
-    current_jobs = context.job_queue.get_jobs_by_name(name)
-    if not current_jobs:
-        return False
-    for job in current_jobs:
-        job.schedule_removal()
-    return True
-
-
-async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Add a job to the queue."""
-    chat_id = update.effective_message.chat_id
-    try:
-        # args[0] should contain the time for the timer in seconds
-        due = float(context.args[0])
-        if due < 0:
-            await update.effective_message.reply_text("Sorry we can not go back to future!")
-            return
-
-        job_removed = remove_job_if_exists(str(chat_id), context)
-        context.job_queue.run_once(
-            alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
-
-        text = "Timer successfully set!"
-        if job_removed:
-            text += " Old one was removed."
-        await update.effective_message.reply_text(text)
-
-    except (IndexError, ValueError):
-        await update.effective_message.reply_text("Usage: /set <seconds>")
-
-
-async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Remove the job if the user changed their mind."""
-    chat_id = update.message.chat_id
-    job_removed = remove_job_if_exists(str(chat_id), context)
-    text = "Timer successfully cancelled!" if job_removed else "You have no active timer."
-    await update.message.reply_text(text)
-
-###
+    await context.bot.send_message(job.chat_id, text=f"Beep!⏰ \n\nSono passati {job.data} minuti!")
 
 
 async def inizializza(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -368,23 +366,35 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def stampa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Rimuovi 'id' dalle colonne
-    colonne = ['username', 'reputazione', 'volume']
+    colonne = ['Materia', 'Tempo studiato', 'Tempo_studio', 'Tempo_pausa', 'nS', 'nP', 'Efficenza', 'Note']    
     df = ModuloJson.read_csv_table("tabella_studio", colonne)
-
     print(df)
+        # Ottieni tutti i valori unici dalla colonna 'Materia'
+    materie_unique = df['Materia'].unique()
 
-    # if not df.empty and df.shape[0] > 0:
-    #     # Formatta manualmente i dati come una tabella
-    #     # Intestazione della tabella
-    #     message = "*Username \| Reputazione \| Volume*\n"
-    #     # Aggiungi righe
-    #     for index, row in df.iterrows():
-    #         message += f"@{ModuloJson.escape_special_chars(row['username'])} \| {int(row['reputazione'])} \| {row['volume']}\n"
+    tempo_studiato_per_materia = df.groupby('Materia')['Tempo studiato'].sum()
 
-    #     await update.message.reply_text(message, parse_mode="MarkdownV2")
-    # else:
-    #     await update.message.reply_text("Il *DataFrame è vuoto* o contiene solo i titoli delle colonne\n\n*Chiedi ad un admin di assegnare le prime reputazioni a persone fidate*", parse_mode="MarkdownV2")
-    #     return
+    # Creazione del grafico a torta
+    plt.figure(figsize=(8, 6))
+    plt.pie(tempo_studiato_per_materia, labels=tempo_studiato_per_materia.index, autopct='%1.1f%%', startangle=140, wedgeprops={"linewidth": 1, "edgecolor": "white"})
+    plt.title('Distribuzione del tempo di studio per materia')
+    plt.axis('equal')  # Assicura che il grafico sia circolare
+    # Salva il grafico come byte
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png')
+    buffer.seek(0)
+
+    # Converti i dati in una stringa formattata per la caption
+    caption = "Distribuzione del tempo di studio per materia\n\n"
+    for materia, minuti in tempo_studiato_per_materia.items():
+        ore = minuti / 60
+        caption += f"*{materia}*: {ore:.2f} ore\n"
+    esc_caption = ModuloJson.escape_special_chars(caption)
+    # Invia l'immagine e la caption tramite Telegram
+    photo = buffer.getvalue()
+    #print(caption)
+    #print(esc_caption)
+    await update.message.reply_photo(photo, caption=esc_caption, parse_mode="MarkdownV2")
 
 
 def main() -> int:
@@ -456,18 +466,18 @@ def main() -> int:
             ],
             STUDIO: [
                 CallbackQueryHandler(studio, pattern="^" + str(ONE) + "$"),
-                CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
+                CallbackQueryHandler(salva, pattern="^" + str(TWO) + "$"),
             ],
             PAUSA: [
                 CallbackQueryHandler(pausa, pattern="^" + str(ONE) + "$"),
-                CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
+                CallbackQueryHandler(salva, pattern="^" + str(TWO) + "$"),
             ],
             STOP_SAVE: [
                 CallbackQueryHandler(salva, pattern="^" + str(ONE) + "$"),
-                CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
+                CallbackQueryHandler(salva, pattern="^" + str(TWO) + "$"),
             ],
             END: [
-                CallbackQueryHandler(end, pattern="^" + str(ONE) + "$"),
+                CallbackQueryHandler(salva, pattern="^" + str(ONE) + "$"),
                 CallbackQueryHandler(
                     start_focus_mode, pattern="^" + str(TWO) + "$"),
             ],
@@ -482,8 +492,6 @@ def main() -> int:
     application.add_handler(CommandHandler("start", inizializza))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("print", stampa))
-    application.add_handler(CommandHandler("set", set_timer))
-    application.add_handler(CommandHandler("unset", unset))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
