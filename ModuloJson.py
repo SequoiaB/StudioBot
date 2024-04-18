@@ -52,7 +52,7 @@ def estrai_nomi_da_stringa(s):
 
 def escape_special_chars(input_string):
     special_chars = ['-', '_', '|', '~',
-                     '(', '[', '{', ')', ']', '}', '>', '`', '.']
+                     '(', '[', '{', ')', ']', '}', '>', '`', '.','!']
     escaped_string = ''
 
     for char in input_string:

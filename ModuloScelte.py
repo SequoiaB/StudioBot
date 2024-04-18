@@ -1,3 +1,5 @@
+import datetime
+
 def getSubject(data):
     try:
         subject= ""
@@ -69,3 +71,15 @@ def getPauseTime(data):
     except Exception as e:
         print("errore in getStudyTime", e)
         return "error"
+    
+def calcola_tempo(minuti_da_aspettare):
+    now = datetime.datetime.now()
+    print("Ora attuale:", now)
+    
+    tempo_futuro = now + datetime.timedelta(minutes=minuti_da_aspettare)
+
+    print("Tempo target: ", tempo_futuro)
+
+    ora_futura = tempo_futuro.hour
+    minuti_futuri = tempo_futuro.minute
+    return ora_futura, minuti_futuri

@@ -20,7 +20,7 @@ from io import BytesIO
 
 
 load_dotenv()
-bot_token = os.getenv("TEST_BOT_TOKEN")
+bot_token = os.getenv("BOT_TOKEN")
 
 global tempInfo
 global colonne
@@ -201,8 +201,13 @@ async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if tempInfo['nS'] == 0:
         delete_id = query_id + 1
     await query.answer()
-    await query.edit_message_text(
-        text=f"Inizia la sessione di focus numero {tempInfo['nS']+1}, attento!")
+    ora_futura, minuti_futuri = ModuloScelte.calcola_tempo(tempInfo["Tempo_studio"])
+
+    text=f"""Inizia il focus *numero {tempInfo['nS']+1}*, attento!💡📖
+La prossima pausa sarà alle *{ora_futura:02d}:{minuti_futuri:02d}🔏*
+"""
+    e_text = ModuloJson.escape_special_chars(text)
+    await query.edit_message_text(e_text,parse_mode="MarkdownV2")
 
     print("query id: ", query_id, "\n message to delite id: ", delete_id)
     if tempInfo['nS'] != 0:
@@ -255,7 +260,13 @@ async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         delete_id = query_id + 1
 
     await query.answer()
-    await query.edit_message_text(text=f"Inizia la pausa numero {tempInfo['nP']+1} 😌")
+    ora_futura, minuti_futuri = ModuloScelte.calcola_tempo(tempInfo["Tempo_pausa"])
+
+    text=f"""Inizia la pausa *numero {tempInfo['nP']+1}*, che chill...🍃☀️
+Si torna a studiare alle *{ora_futura:02d}:{minuti_futuri:02d}🔓*
+"""
+    e_text = ModuloJson.escape_special_chars(text)
+    await query.edit_message_text(e_text,parse_mode="MarkdownV2")
 
     print("query id: ", query_id, "\n message to delite id: ", delete_id)
     await context.bot.deleteMessage(update.effective_chat.id, delete_id)
