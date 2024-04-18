@@ -20,7 +20,7 @@ from io import BytesIO
 
 
 load_dotenv()
-bot_token = os.getenv("BOT_TOKEN")
+bot_token = os.getenv("TEST_BOT_TOKEN")
 
 global tempInfo
 global colonne
@@ -192,7 +192,7 @@ async def salva_t_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     global tempInfo
-    
+
     query = update.callback_query
     chat_id = update.effective_message.chat_id
     query_id = query.message.message_id
@@ -202,9 +202,9 @@ async def studio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         delete_id = query_id + 1
     await query.answer()
     await query.edit_message_text(
-            text=f"Inizia la sessione di focus numero {tempInfo['nS']+1}, attento!")
-    
-    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+        text=f"Inizia la sessione di focus numero {tempInfo['nS']+1}, attento!")
+
+    print("query id: ", query_id, "\n message to delite id: ", delete_id)
     if tempInfo['nS'] != 0:
         await context.bot.deleteMessage(update.effective_chat.id, delete_id)
         print("eliminato messaggio con id: ", delete_id)
@@ -253,14 +253,14 @@ async def pausa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if tempInfo['nP'] == 0:
         delete_id = query_id + 1
-    
+
     await query.answer()
     await query.edit_message_text(text=f"Inizia la pausa numero {tempInfo['nP']+1} 😌")
 
-    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+    print("query id: ", query_id, "\n message to delite id: ", delete_id)
     await context.bot.deleteMessage(update.effective_chat.id, delete_id)
     print("eliminato messaggio con id: ", delete_id)
-    
+
     print("tempInfo nP: ", tempInfo["nP"])
 
     due = tempInfo['Tempo_pausa'] * 60
@@ -293,7 +293,7 @@ async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query_id = query.message.message_id
     delete_id = query_id + tempInfo['nS'] + tempInfo["nP"]
 
-    print("query id: ", query_id,"\n message to delite id: ", delete_id)
+    print("query id: ", query_id, "\n message to delite id: ", delete_id)
     await context.bot.deleteMessage(update.effective_chat.id, delete_id)
     print("eliminato messaggio con id: ", delete_id)
 
@@ -309,7 +309,7 @@ async def salva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             columns=colonne, newline=tempInfo)
 
     ore_studiate = tempInfo['Tempo studiato']//60
-    minuti_restanti = tempInfo['Tempo studiato'] - 60* ore_studiate
+    minuti_restanti = tempInfo['Tempo studiato'] - 60 * ore_studiate
     await query.edit_message_text(
         text=f"salvato, hai studiato {tempInfo['Materia']} per {ore_studiate} ore e {minuti_restanti} minuti, 🆒\npausetta? ☕"
     )
@@ -366,17 +366,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def stampa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Rimuovi 'id' dalle colonne
-    colonne = ['Materia', 'Tempo studiato', 'Tempo_studio', 'Tempo_pausa', 'nS', 'nP', 'Efficenza', 'Note']    
+    colonne = ['Materia', 'Tempo studiato', 'Tempo_studio',
+               'Tempo_pausa', 'nS', 'nP', 'Efficenza', 'Note']
     df = ModuloJson.read_csv_table("tabella_studio", colonne)
     print(df)
-        # Ottieni tutti i valori unici dalla colonna 'Materia'
+    # Ottieni tutti i valori unici dalla colonna 'Materia'
     materie_unique = df['Materia'].unique()
 
     tempo_studiato_per_materia = df.groupby('Materia')['Tempo studiato'].sum()
 
     # Creazione del grafico a torta
     plt.figure(figsize=(8, 6))
-    plt.pie(tempo_studiato_per_materia, labels=tempo_studiato_per_materia.index, autopct='%1.1f%%', startangle=140, wedgeprops={"linewidth": 1, "edgecolor": "white"})
+    plt.pie(tempo_studiato_per_materia, labels=tempo_studiato_per_materia.index,
+            autopct='%1.1f%%', startangle=140, wedgeprops={"linewidth": 1, "edgecolor": "white"})
     plt.title('Distribuzione del tempo di studio per materia')
     plt.axis('equal')  # Assicura che il grafico sia circolare
     # Salva il grafico come byte
@@ -392,8 +394,8 @@ async def stampa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     esc_caption = ModuloJson.escape_special_chars(caption)
     # Invia l'immagine e la caption tramite Telegram
     photo = buffer.getvalue()
-    #print(caption)
-    #print(esc_caption)
+    # print(caption)
+    # print(esc_caption)
     await update.message.reply_photo(photo, caption=esc_caption, parse_mode="MarkdownV2")
 
 
